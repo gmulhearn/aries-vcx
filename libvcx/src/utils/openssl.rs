@@ -1,5 +1,5 @@
-use sha2::{Sha256, Digest};
 use num_bigint::BigUint;
+use sha2::{Digest, Sha256};
 
 use crate::error::prelude::*;
 

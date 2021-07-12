@@ -5,8 +5,6 @@ use crate::settings::Actors;
 use crate::utils::qualifier;
 
 use self::rust_base58::FromBase58;
-use num_bigint::BigUint;
-use num_traits::Num;
 
 pub fn validate_did(did: &str) -> VcxResult<String> {
     if qualifier::is_fully_qualified(did) {
