@@ -1,12 +1,12 @@
-extern crate openssl;
 extern crate rust_base58;
 
 use crate::error::prelude::*;
 use crate::settings::Actors;
 use crate::utils::qualifier;
 
-use self::openssl::bn::BigNum;
 use self::rust_base58::FromBase58;
+use num_bigint::BigUint;
+use num_traits::Num;
 
 pub fn validate_did(did: &str) -> VcxResult<String> {
     if qualifier::is_fully_qualified(did) {
@@ -29,7 +29,6 @@ pub fn validate_did(did: &str) -> VcxResult<String> {
 }
 
 pub fn validate_verkey(verkey: &str) -> VcxResult<String> {
-    //    assert len(base58.b58decode(ver_key)) == 32
     let check_verkey = String::from(verkey);
     match check_verkey.from_base58() {
         Ok(ref x) if x.len() == 32 => Ok(check_verkey),
@@ -39,9 +38,9 @@ pub fn validate_verkey(verkey: &str) -> VcxResult<String> {
 }
 
 pub fn validate_nonce(nonce: &str) -> VcxResult<String> {
-    let nonce = BigNum::from_dec_str(nonce)
+    let nonce = BigUint::from_str_radix(nonce, 10)
         .map_err(|err| VcxError::from_msg(VcxErrorKind::InvalidNonce, err))?;
-    if nonce.num_bits() > 80 {
+    if nonce.bits() > 80 {
         return Err(VcxError::from_msg(VcxErrorKind::InvalidNonce, "Invalid Nonce length"));
     }
     Ok(nonce.to_string())
