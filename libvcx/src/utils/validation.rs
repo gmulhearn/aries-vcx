@@ -37,30 +37,6 @@ pub fn validate_verkey(verkey: &str) -> VcxResult<String> {
     }
 }
 
-pub fn validate_nonce(nonce: &str) -> VcxResult<String> {
-    let nonce = BigUint::from_str_radix(nonce, 10)
-        .map_err(|err| VcxError::from_msg(VcxErrorKind::InvalidNonce, err))?;
-    if nonce.bits() > 80 {
-        return Err(VcxError::from_msg(VcxErrorKind::InvalidNonce, "Invalid Nonce length"));
-    }
-    Ok(nonce.to_string())
-}
-
-pub fn validate_key_delegate(delegate: &str) -> VcxResult<String> {
-    //todo: find out what needs to be validated for key_delegate
-    let check_delegate = String::from(delegate);
-    Ok(check_delegate)
-}
-
-pub fn validate_actors(actors: &str) -> VcxResult<Vec<Actors>> {
-    ::serde_json::from_str(&actors)
-        .map_err(|err| VcxError::from_msg(VcxErrorKind::InvalidOption, format!("Invalid actors: {:?}", err)))
-}
-
-pub fn validate_phone_number(p_num: &str) -> VcxResult<String> {
-    Ok(String::from(p_num))
-}
-
 pub fn validate_payment_method(payment_method: &str) -> VcxResult<()> {
     if payment_method.is_empty() {
         return Err(VcxError::from(VcxErrorKind::MissingPaymentMethod));
