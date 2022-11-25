@@ -4,7 +4,8 @@ members = [
     "libvcx",
     "agency_client",
     "messages",
-    "agents/rust/aries-vcx-agent"
+    "agents/rust/aries-vcx-agent",
+    "wrappers/node-napi-rs/api-node",
 ]
 
 [workspace.package]
