@@ -4,7 +4,7 @@
 //this is needed for some large json macro invocations
 #![recursion_limit = "128"]
 #[macro_use]
-extern crate aries_vcx;
+pub extern crate aries_vcx;
 
 #[macro_use]
 extern crate lazy_static;
@@ -16,7 +16,7 @@ extern crate log;
 extern crate serde_derive;
 
 #[macro_use]
-extern crate serde_json;
+pub extern crate serde_json;
 
 #[macro_use]
 extern crate cfg_if;
