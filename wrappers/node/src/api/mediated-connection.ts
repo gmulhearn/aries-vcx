@@ -1,12 +1,10 @@
-import * as ffi from 'ffi-napi';
+import * as ffiNapi from 'node-napi-rs';
 import * as ref from 'ref-napi';
-import { VCXInternalError } from '../errors';
-import { rustAPI } from '../rustlib';
-import { createFFICallbackPromise, ICbRef } from '../utils/ffi-helpers';
+import { VCXInternalError1 } from '../errors-1';
 import { ISerializedData, ConnectionStateType } from './common';
-import { VCXBaseWithState } from './vcx-base-with-state';
+import { VCXBaseWithState1 } from './vcx-base-with-state-1';
 import { PublicAgent } from './public-agent';
-import { PtrBuffer, IPwInfo } from './utils';
+import { IPwInfo } from './utils';
 
 /**
  *   The object of the VCX API representing a pairwise relationship with another identity owner.
@@ -225,74 +223,25 @@ export async function downloadMessagesV2({
   uids,
 }: IDownloadMessagesConfigsV2): Promise<string> {
   try {
-    const handles = connections.map((connection) => connection.handle).join(',');
-    return await createFFICallbackPromise<string>(
-      (resolve, reject, cb) => {
-        const rc = rustAPI().vcx_v2_messages_download(0, handles, status, uids, cb);
-        if (rc) {
-          reject(rc);
-        }
-      },
-      (resolve, reject) =>
-        ffi.Callback(
-          'void',
-          ['uint32', 'uint32', 'string'],
-          (xhandle: number, err: number, messages: string) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-            resolve(messages);
-          },
-        ),
-    );
+    const handles = connections.map((connection) => connection.handle);
+    return await ffiNapi.mediatedConnectionMessagesDownload(handles, status, uids);
   } catch (err: any) {
-    throw new VCXInternalError(err);
+    throw new VCXInternalError1(err);
   }
 }
 
-export async function generatePublicInvite(public_did: string, label: string): Promise<string> {
+export function generatePublicInvite(public_did: string, label: string): string {
   try {
-    const data = await createFFICallbackPromise<string>(
-      (resolve, reject, cb) => {
-        const commandHandle = 0;
-        const rc = rustAPI().vcx_generate_public_invite(
-          commandHandle,
-          public_did,
-          label,
-          cb,
-        );
-        if (rc) {
-          reject(rc);
-        }
-      },
-      (resolve, reject) =>
-        ffi.Callback(
-          'void',
-          ['uint32', 'uint32', 'string'],
-          (handle: number, err: number, invite: string) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-            if (!invite) {
-              reject('no public invite returned');
-              return;
-            }
-            resolve(invite);
-          },
-        ),
-    );
-    return data;
+    return ffiNapi.mediatedConnectionGeneratePublicInvite(public_did, label)
   } catch (err: any) {
-    throw new VCXInternalError(err);
+    throw new VCXInternalError1(err);
   }
 }
 
 /**
  * @class Class representing a Connection
  */
-export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStateType> {
+export class Connection extends VCXBaseWithState1<IConnectionData, ConnectionStateType> {
   /**
  * Create a connection object, represents a single endpoint and can be used for sending and receiving
  * credentials and proofs
@@ -306,11 +255,10 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
   public static async create({ id }: IConnectionCreateData): Promise<Connection> {
     try {
       const connection = new Connection(id);
-      const commandHandle = 0;
-      await connection._create((cb) => rustAPI().vcx_connection_create(commandHandle, id, cb));
+      connection._setHandle(await ffiNapi.mediatedConnectionCreate(id))
       return connection;
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -326,44 +274,20 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    * ```
    */
   public static async createWithInvite({ id, invite }: IRecipientInviteInfo): Promise<Connection> {
-    const connection = new Connection(id);
-    const commandHandle = 0;
     try {
-      await connection._create((cb) =>
-        rustAPI().vcx_connection_create_with_invite(commandHandle, id, invite, cb),
-      );
-
+      const connection = new Connection(id);
+      connection._setHandle(await ffiNapi.mediatedConnectionCreateWithInvite(id, invite))
       return connection;
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
-  public async getThreadId(): Promise<string> {
+  public getThreadId(): string {
     try {
-      const threadId = await createFFICallbackPromise<string>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_get_thread_id(0, this.handle, cb);
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'string'],
-            (handle: number, err: number, threadId: string) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              resolve(threadId);
-            },
-          ),
-      );
-      return threadId;
+      return ffiNapi.mediatedConnectionGetThreadId(this.handle)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -372,15 +296,12 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
     agent,
     request
   }: IFromRequestInfo): Promise<Connection> {
-    const connection = new Connection(id);
-    const commandHandle = 0;
     try {
-      await connection._create((cb) =>
-        rustAPI().vcx_connection_create_with_connection_request(commandHandle, id, agent.handle, request, cb),
-      );
+      const connection = new Connection(id);
+      connection._setHandle(await ffiNapi.mediatedConnectionCreateWithConnectionRequest(request, agent.handle))
       return connection;
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -389,15 +310,12 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
     pwInfo,
     request
   }: IFromRequestInfoV2): Promise<Connection> {
-    const connection = new Connection(id);
-    const commandHandle = 0;
     try {
-      await connection._create((cb) =>
-        rustAPI().vcx_connection_create_with_connection_request_v2(commandHandle, id, JSON.stringify(pwInfo), request, cb),
-      );
+      const connection = new Connection(id);
+      connection._setHandle(await ffiNapi.mediatedConnectionCreateWithConnectionRequestV2(request, JSON.stringify(pwInfo)))
       return connection;
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -407,28 +325,29 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    * data = await connection1.serialize()
    * connection2 = await Connection.deserialize(data)
    */
-  public static async deserialize(
+  public static deserialize(
     connectionData: ISerializedData<IConnectionData>,
-  ): Promise<Connection> {
-    const connection = await super._deserialize(Connection, connectionData);
-    return connection;
+  ): Connection {
+    try {
+      return super._deserialize(Connection, connectionData);
+    } catch (err: any) {
+      throw new VCXInternalError1(err);
+    }
   }
 
-  protected _releaseFn = rustAPI().vcx_connection_release;
-  protected _updateStFn = rustAPI().vcx_connection_update_state;
+  protected _releaseFn = ffiNapi.mediatedConnectionRelease;
+  protected _updateStFn = ffiNapi.mediatedConnectionUpdateState;
   protected _updateStFnV2 = (
-    _commandHandle: number,
     _handle: number,
     _connHandle: number,
-    _cb: ICbRef,
   ): number => {
     throw new Error('_updateStFnV2 cannot be called for a Connection object');
   };
-  protected _getStFn = rustAPI().vcx_connection_get_state;
-  protected _serializeFn = rustAPI().vcx_connection_serialize;
-  protected _deserializeFn = rustAPI().vcx_connection_deserialize;
-  protected _inviteDetailFn = rustAPI().vcx_connection_invite_details;
-  protected _infoFn = rustAPI().vcx_connection_info;
+  protected _getStFn = ffiNapi.mediatedConnectionGetState;
+  protected _serializeFn = ffiNapi.mediatedConnectionSerialize;
+  protected _deserializeFn = ffiNapi.mediatedConnectionDeserialize;
+  protected _inviteDetailFn = ffiNapi.mediatedConnectionInviteDetails;
+  protected _infoFn = ffiNapi.mediatedConnectionInfo;
 
   /**
    *
@@ -442,34 +361,9 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    */
   public async updateStateWithMessage(message: string): Promise<number> {
     try {
-      const commandHandle = 0;
-      const state = await createFFICallbackPromise<number>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_update_state_with_message(
-            commandHandle,
-            this.handle,
-            message,
-            cb,
-          );
-          if (rc) {
-            resolve(0);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'uint32'],
-            (handle: number, err: number, _state: number) => {
-              if (err) {
-                reject(err);
-              }
-              resolve(_state);
-            },
-          ),
-      );
-      return state;
+      return await ffiNapi.mediatedConnectionUpdateStateWithMessage(this.handle, message)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -485,33 +379,9 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    */
   public async handleMessage(message: string) {
     try {
-      const commandHandle = 0;
-      await createFFICallbackPromise<void>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_handle_message(
-            commandHandle,
-            this.handle,
-            message,
-            cb,
-          );
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32'],
-            (handle: number, err: number) => {
-              if (err) {
-                reject(err);
-              }
-              resolve();
-            },
-          ),
-      );
+      return await ffiNapi.mediatedConnectionHandleMessage(this.handle, message)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -524,33 +394,13 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    * ```
    * await object.updateState()
    * ```
-   * @returns {Promise<void>}
+   * @returns {Promise<number>}
    */
   public async updateState(): Promise<number> {
     try {
-      const commandHandle = 0;
-      const state = await createFFICallbackPromise<number>(
-        (resolve, reject, cb) => {
-          const rc = this._updateStFn(commandHandle, this.handle, cb);
-          if (rc) {
-            resolve(0);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'uint32'],
-            (handle: number, err: number, _state: number) => {
-              if (err) {
-                reject(err);
-              }
-              resolve(_state);
-            },
-          ),
-      );
-      return state;
+      return await ffiNapi.mediatedConnectionUpdateState(this.handle)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -564,28 +414,14 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    * await connection.delete()
    * ```
    */
-  public async delete(): Promise<void> {
+  public delete(): void {
     try {
-      await createFFICallbackPromise<void>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_delete_connection(0, this.handle, cb);
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback('void', ['uint32', 'uint32'], (xcommandHandle: number, err: number) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-            resolve();
-          }),
-      );
+      ffiNapi.mediatedConnectionDeleteConnection(this.handle)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
+
   /**
    * Creates a connection between enterprise and end user.
    *
@@ -597,36 +433,14 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    * ```
    * @returns {Promise<string}
    */
-  public async connect(connectionData: IConnectOptions): Promise<string> {
+  public async connect(): Promise<string> {
     try {
-      return await createFFICallbackPromise<string>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_connect(0, this.handle, connectionData.data, cb);
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'string'],
-            (xHandle: number, err: number, details: string) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              if (!details) {
-                reject(`Connection ${this.sourceId} connect returned empty string`);
-                return;
-              }
-              resolve(details);
-            },
-          ),
-      );
+      return (await ffiNapi.mediatedConnectionConnect(this.handle) || "{}")
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
+
   /**
    * Sends a message to the connection.
    *
@@ -635,76 +449,26 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    * msg_id = await connection.send_message(
    *     {msg:"are you there?",type:"question","title":"Sending you a question"})
    * ```
-   * @returns {Promise<string>} Promise of String representing UID of created message in 1.0 VCX protocol. When using
-   * 2.0 / 3.0 / Aries protocol, return empty string.
+   * @returns {Promise<void>}
    */
-  public async sendMessage(msgData: IMessageData): Promise<string> {
+  public async sendMessage(msgData: IMessageData): Promise<void> {
     const sendMsgOptions = {
       msg_title: msgData.title,
       msg_type: msgData.type,
       ref_msg_id: msgData.refMsgId,
     };
     try {
-      return await createFFICallbackPromise<string>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_send_message(
-            0,
-            this.handle,
-            msgData.msg,
-            JSON.stringify(sendMsgOptions),
-            cb,
-          );
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'string'],
-            (xHandle: number, err: number, details: string) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              resolve(details);
-            },
-          ),
-      );
+      return await ffiNapi.mediatedConnectionSendMessage(this.handle, JSON.stringify(sendMsgOptions))
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
   public async sendHandshakeReuse(oobMsg: string): Promise<void> {
     try {
-      return await createFFICallbackPromise<void>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_send_handshake_reuse(
-            0,
-            this.handle,
-            oobMsg,
-            cb,
-          );
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32'],
-            (xHandle: number, err: number) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              resolve();
-            },
-          ),
-      );
+      return await ffiNapi.mediatedConnectionSendHandshakeReuse(this.handle, oobMsg)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -719,41 +483,12 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    */
   public async signData(data: Buffer): Promise<Buffer> {
     try {
-      return await createFFICallbackPromise<Buffer>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_sign_data(
-            0,
-            this.handle,
-            ref.address(data),
-            data.length,
-            cb,
-          );
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'pointer', 'uint32'],
-            (xHandle: number, err: number, detailsPtr: PtrBuffer, length: number) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              if (!detailsPtr) {
-                reject(`Connection ${this.sourceId}  returned empty buffer`);
-                return;
-              }
-              const newBuffer = voidPtrToUint8Array(detailsPtr, length);
-              resolve(newBuffer);
-            },
-          ),
-      );
+      return await ffiNapi.mediatedConnectionSignData(this.handle, data)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
+
   /**
    * Verify the signature of the data using connection pairwise key.
    *
@@ -765,36 +500,9 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    */
   public async verifySignature(signatureData: ISignatureData): Promise<boolean> {
     try {
-      return await createFFICallbackPromise<boolean>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_verify_signature(
-            0,
-            this.handle,
-            ref.address(signatureData.data),
-            signatureData.data.length,
-            ref.address(signatureData.signature),
-            signatureData.signature.length,
-            cb,
-          );
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'bool'],
-            (xHandle: number, err: number, valid: boolean) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              resolve(valid);
-            },
-          ),
-      );
+      return await ffiNapi.mediatedConnectionVerifySignature(this.handle, signatureData.data, signatureData.data)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -809,35 +517,11 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    * inviteDetailsAgain = await connection.inviteDetails()
    * ```
    */
-  public async inviteDetails(abbr = false): Promise<IConnectionInvite> {
+  public inviteDetails(): IConnectionInvite {
     try {
-      const data = await createFFICallbackPromise<string>(
-        (resolve, reject, cb) => {
-          const rc = this._inviteDetailFn(0, this.handle, abbr, cb);
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'string'],
-            (handle: number, err: number, details: string) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              if (!details) {
-                reject('no details returned');
-                return;
-              }
-              resolve(details);
-            },
-          ),
-      );
-      return data;
+      return ffiNapi.mediatedConnectionInviteDetails(this.handle)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -846,28 +530,12 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    *
    * Note that this function is useful in case `aries` communication method is used.
    * In other cases it returns ActionNotSupported error.
-   *
    */
   public async sendPing(comment: string | null | undefined): Promise<void> {
     try {
-      return await createFFICallbackPromise<void>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_send_ping(0, this.handle, comment, cb);
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback('void', ['uint32', 'uint32'], (xhandle: number, err: number) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-            resolve();
-          }),
-      );
+      return await ffiNapi.mediatedConnectionSendPing(this.handle, comment)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -876,107 +544,37 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    *
    * Note that this function is useful in case `aries` communication method is used.
    * In other cases it returns ActionNotSupported error.
-   *
    */
   public async sendDiscoveryFeatures(
     query: string | null | undefined,
     comment: string | null | undefined,
   ): Promise<void> {
     try {
-      return await createFFICallbackPromise<void>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_send_discovery_features(
-            0,
-            this.handle,
-            query,
-            comment,
-            cb,
-          );
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback('void', ['uint32', 'uint32'], (xhandle: number, err: number) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-            resolve();
-          }),
-      );
+      return await ffiNapi.mediatedConnectionSendDiscoveryFeatures(this.handle, query, comment)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
   /**
    * Retrieves pw_did from Connection object
-   *
    */
-  public async getPwDid(): Promise<string> {
+  public getPwDid(): string {
     try {
-      return await createFFICallbackPromise<string>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_get_pw_did(0, this.handle, cb);
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'string'],
-            (xHandle: number, err: number, details: string) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              if (!details) {
-                reject(`Connection ${this.sourceId} connect returned empty string`);
-                return;
-              }
-              resolve(details);
-            },
-          ),
-      );
+      return ffiNapi.mediatedConnectionGetPwDid(this.handle)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
   /**
    * Retrieves their_pw_did from Connection object
-   *
    */
-  public async getTheirDid(): Promise<string> {
+  public getTheirDid(): string {
     try {
-      return await createFFICallbackPromise<string>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_get_their_pw_did(0, this.handle, cb);
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'string'],
-            (xHandle: number, err: number, details: string) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              if (!details) {
-                reject(`Connection ${this.sourceId} connect returned empty string`);
-                return;
-              }
-              resolve(details);
-            },
-          ),
-      );
+      return ffiNapi.mediatedConnectionGetTheirPwDid(this.handle)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
@@ -989,60 +587,17 @@ export class Connection extends VCXBaseWithState<IConnectionData, ConnectionStat
    */
   public async info(): Promise<IConnectionInfo> {
     try {
-      const data = await createFFICallbackPromise<string>(
-        (resolve, reject, cb) => {
-          const rc = this._infoFn(0, this.handle, cb);
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'string'],
-            (handle: number, err: number, info: string) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              if (!info) {
-                reject('no info returned');
-                return;
-              }
-              resolve(info);
-            },
-          ),
-      );
-      return data;
+      return await ffiNapi.mediatedConnectionInfo(this.handle)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 
   public async downloadMessages({ status, uids }: IConnectionDownloadMessages): Promise<string> {
     try {
-      return await createFFICallbackPromise<string>(
-        (resolve, reject, cb) => {
-          const rc = rustAPI().vcx_connection_messages_download(0, this.handle, status, uids, cb);
-          if (rc) {
-            reject(rc);
-          }
-        },
-        (resolve, reject) =>
-          ffi.Callback(
-            'void',
-            ['uint32', 'uint32', 'string'],
-            (xhandle: number, err: number, messages: string) => {
-              if (err) {
-                reject(err);
-                return;
-              }
-              resolve(messages);
-            },
-          ),
-      );
+      return await ffiNapi.mediatedConnectionMessagesDownload([this.handle], status, uids)
     } catch (err: any) {
-      throw new VCXInternalError(err);
+      throw new VCXInternalError1(err);
     }
   }
 }
